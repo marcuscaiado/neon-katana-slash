@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Neon Katana Slash ⚔️⚡</title>
+  <script src="arcade-leaderboard.js"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; touch-action:none; user-select:none; }
+    body { background:#080a18; color:#fff; font-family:'Segoe UI',sans-serif; overflow:hidden; display:flex; justify-content:center; align-items:center; height:100vh; }
+    #canvas-container { position:relative; width:100vw; height:100vh; max-width:800px; }
+    @media (max-width: 600px) { .hud { font-size:16px; } .arcade-nav { font-size:11px; padding:6px 10px; } }
+    canvas { width:100%; height:100%; display:block; background:#080a18; }
+    .arcade-nav { position:absolute; top:16px; right:16px; z-index:100; background:rgba(0,0,0,0.7); border:2px solid #00f5ff; color:#00f5ff; padding:8px 16px; border-radius:8px; font-weight:bold; text-decoration:none; font-size:13px; box-shadow:0 0 15px rgba(0,245,255,0.4); }
+    .hud { position:absolute; top:16px; left:16px; font-family:monospace; font-size:20px; font-weight:bold; color:#00f5ff; text-shadow:0 0 10px #00f5ff; pointer-events:none; }
+    .hint { position:absolute; bottom:20px; left:50%; transform:translateX(-50%); font-size:15px; color:#aaa; pointer-events:none; font-weight:bold; text-align:center; }
+    #modal { position:absolute; inset:0; background:rgba(0,0,0,0.85); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; z-index:200; }
+    #modal h1 { color:#00f5ff; font-size:40px; text-shadow:0 0 20px #00f5ff; text-align:center; }
+    .btn { background:linear-gradient(135deg,#00f5ff,#ff007f); border:none; color:#000; padding:12px 32px; font-size:18px; font-weight:bold; border-radius:8px; cursor:pointer; text-decoration:none; box-shadow:0 0 20px rgba(0,245,255,0.5); }
+  </style>
+</head>
+<body>
+  <div id="canvas-container">
+    <a href="https://marcuscaiado.github.io/marcus-arcade/" class="arcade-nav">🕹️ Arcade Hub</a>
+    <div class="hud">SCORE: <span id="score-val">0</span> | LIVES: <span id="lives-val">3</span> | COMBO: <span id="combo-val">0x</span></div>
+    <div class="hint">Swipe / Drag mouse across glowing cubes to slice! Avoid glitch bombs 💣</div>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    
+    <div id="modal">
+      <h1 id="modal-title">NEON KATANA SLASH ⚔️</h1>
+      <p style="font-size:16px; color:#aaa;" id="modal-sub">Slice cyber data cubes & dodge red glitch bombs</p>
+      <button class="btn" onclick="startGame()">DRAW KATANA ⚔️</button>
+      <a href="https://marcuscaiado.github.io/marcus-arcade/" class="btn" style="background:#222; color:#fff; border:1px solid #00f5ff;">ARCADE HUB 🕹️</a>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Audio
+    let audioCtx = null;
+    function getAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); return audioCtx; }
+    function playSlashSound(pitch = 800) {
+      try {
+        const c = getAudio(); const osc = c.createOscillator(); const g = c.createGain();
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(pitch, c.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(150, c.currentTime + 0.12);
+        g.gain.setValueAtTime(0.2, c.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.12);
+        osc.connect(g); g.connect(c.destination); osc.start(); osc.stop(c.currentTime + 0.12);
+      } catch(e){}
+    }
+
+    let score = 0, lives = 3, combo = 0, gameActive = false;
+    let targets = [];
+    let particles = [];
+    let slashPoints = [];
+    let isMouseDown = false;
+    let spawnTimer = 0;
+
+    function startGame() {
+      score = 0; lives = 3; combo = 0; targets = []; particles = []; slashPoints = [];
+      document.getElementById('score-val').textContent = '0';
+      document.getElementById('lives-val').textContent = '3';
+      document.getElementById('combo-val').textContent = '0x';
+      document.getElementById('modal').style.display = 'none';
+      gameActive = true;
+      requestAnimationFrame(loop);
+    }
+
+    function addSlashPoint(x, y) {
+      slashPoints.push({ x, y, life: 1 });
+      checkSlice(x, y);
+    }
+
+    const getCanvasPos = (clientX, clientY) => {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: ((clientX - rect.left) / rect.width) * 800,
+        y: ((clientY - rect.top) / rect.height) * 600
+      };
+    };
+
+    window.addEventListener('mousedown', e => { isMouseDown = true; const p = getCanvasPos(e.clientX, e.clientY); addSlashPoint(p.x, p.y); });
+    window.addEventListener('mousemove', e => { if (isMouseDown) { const p = getCanvasPos(e.clientX, e.clientY); addSlashPoint(p.x, p.y); } });
+    window.addEventListener('mouseup', () => { isMouseDown = false; combo = 0; document.getElementById('combo-val').textContent = '0x'; });
+
+    window.addEventListener('touchstart', e => { isMouseDown = true; const p = getCanvasPos(e.touches[0].clientX, e.touches[0].clientY); addSlashPoint(p.x, p.y); }, { passive:false });
+    window.addEventListener('touchmove', e => { e.preventDefault(); const p = getCanvasPos(e.touches[0].clientX, e.touches[0].clientY); addSlashPoint(p.x, p.y); }, { passive:false });
+    window.addEventListener('touchend', () => { isMouseDown = false; combo = 0; document.getElementById('combo-val').textContent = '0x'; });
+
+    function checkSlice(sx, sy) {
+      for (let i = targets.length - 1; i >= 0; i--) {
+        const t = targets[i];
+        if (t.sliced) continue;
+        const d = Math.hypot(sx - t.x, sy - t.y);
+        if (d < t.size) {
+          t.sliced = true;
+
+          if (t.isBomb) {
+            // Hit Bomb!
+            lives--;
+            document.getElementById('lives-val').textContent = lives;
+            playSlashSound(120);
+            for (let p=0; p<20; p++) particles.push({ x: t.x, y: t.y, vx:(Math.random()-0.5)*12, vy:(Math.random()-0.5)*12, color:'#ff0055', life:1.2 });
+            if (lives <= 0) {
+              gameOver();
+              return;
+            }
+          } else {
+            // Hit Cube!
+            combo++;
+            const pts = 50 * combo;
+            score += pts;
+            document.getElementById('score-val').textContent = score;
+            document.getElementById('combo-val').textContent = combo + 'x';
+            playSlashSound(600 + combo * 80);
+
+            for (let p=0; p<14; p++) {
+              particles.push({ x: t.x, y: t.y, vx:(Math.random()-0.5)*10, vy:(Math.random()-0.5)*10, color: t.color, life:1 });
+            }
+          }
+        }
+      }
+    }
+
+    function spawnTarget() {
+      const isBomb = Math.random() < 0.2;
+      targets.push({
+        x: 100 + Math.random() * 600,
+        y: 620,
+        vx: (Math.random() - 0.5) * 6,
+        vy: -14 - Math.random() * 4,
+        size: isBomb ? 26 : 30,
+        rot: 0,
+        rotSpeed: (Math.random() - 0.5) * 0.15,
+        color: isBomb ? '#ff0055' : (Math.random() > 0.5 ? '#00f5ff' : '#05ffa1'),
+        isBomb,
+        sliced: false
+      });
+    }
+
+    function loop() {
+      if (!gameActive) return;
+
+      // Spawning
+      spawnTimer++;
+      if (spawnTimer > 45) {
+        spawnTimer = 0;
+        spawnTarget();
+        if (Math.random() < 0.4) spawnTarget();
+      }
+
+      // Update Targets
+      for (let i = targets.length - 1; i >= 0; i--) {
+        const t = targets[i];
+        t.vy += 0.24; // Gravity
+        t.x += t.vx;
+        t.y += t.vy;
+        t.rot += t.rotSpeed;
+
+        if (t.y > 660 && !t.sliced) {
+          if (!t.isBomb) {
+            lives--;
+            document.getElementById('lives-val').textContent = lives;
+            if (lives <= 0) {
+              gameOver();
+              return;
+            }
+          }
+          targets.splice(i, 1);
+        } else if (t.y > 660) {
+          targets.splice(i, 1);
+        }
+      }
+
+      // Update Slash Points
+      for (let i = slashPoints.length - 1; i >= 0; i--) {
+        slashPoints[i].life -= 0.08;
+        if (slashPoints[i].life <= 0) slashPoints.splice(i, 1);
+      }
+
+      // Render
+      ctx.fillStyle = '#080a18'; ctx.fillRect(0, 0, 800, 600);
+
+      // Background Grid
+      ctx.strokeStyle = 'rgba(0,245,255,0.06)'; ctx.lineWidth = 1;
+      for (let x=0; x<800; x+=60) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,600); ctx.stroke(); }
+      for (let y=0; y<600; y+=60) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(800,y); ctx.stroke(); }
+
+      // Draw Targets
+      targets.forEach(t => {
+        if (t.sliced) return;
+        ctx.save();
+        ctx.translate(t.x, t.y);
+        ctx.rotate(t.rot);
+        ctx.fillStyle = t.color;
+        ctx.shadowColor = t.color; ctx.shadowBlur = 18;
+
+        if (t.isBomb) {
+          ctx.beginPath(); ctx.arc(0, 0, t.size, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#fff'; ctx.font = '20px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText('💣', 0, 0);
+        } else {
+          ctx.fillRect(-t.size/2, -t.size/2, t.size, t.size);
+          ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+          ctx.strokeRect(-t.size/2, -t.size/2, t.size, t.size);
+        }
+        ctx.restore();
+      });
+
+      // Draw Slash Blade Trail
+      if (slashPoints.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(slashPoints[0].x, slashPoints[0].y);
+        for (let i = 1; i < slashPoints.length; i++) {
+          ctx.lineTo(slashPoints[i].x, slashPoints[i].y);
+        }
+        ctx.strokeStyle = '#00f5ff';
+        ctx.lineWidth = 8;
+        ctx.lineCap = 'round';
+        ctx.shadowColor = '#00f5ff'; ctx.shadowBlur = 20;
+        ctx.stroke();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
+      // Draw Particles
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.life -= 0.04;
+        if (p.life <= 0) { particles.splice(i, 1); continue; }
+        ctx.fillStyle = p.color; ctx.globalAlpha = p.life;
+        ctx.fillRect(p.x, p.y, 4, 4);
+        ctx.globalAlpha = 1;
+      }
+
+      requestAnimationFrame(loop);
+    }
+
+    function gameOver() {
+      gameActive = false;
+      document.getElementById('modal-title').textContent = 'MATRIX BREACH! 💥';
+      document.getElementById('modal-sub').textContent = `FINAL SCORE: ${score.toLocaleString()} | MAX COMBO: ${combo}x`;
+      document.getElementById('modal').style.display = 'flex';
+      try {
+        if (window.ArcadeLeaderboard) {
+          window.ArcadeLeaderboard.submitScore('neon-katana-slash', score);
+        }
+      } catch(e){}
+    }
+  </script>
+</body>
+</html>
