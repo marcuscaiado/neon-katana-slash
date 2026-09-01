@@ -3,33 +3,34 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Neon Katana Slash ⚔️🍉</title>
+  <title>Neon Katana Slash ⚔️🍉 — 60s Time Attack</title>
   <script src="arcade-leaderboard.js"></script>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; touch-action:none; user-select:none; }
     body { background:#070916; color:#fff; font-family:'Segoe UI',sans-serif; overflow:hidden; display:flex; justify-content:center; align-items:center; height:100vh; }
     #canvas-container { position:relative; width:100vw; height:100vh; max-width:800px; }
-    @media (max-width: 600px) { .hud { font-size:16px; } .arcade-nav { font-size:11px; padding:6px 10px; } }
+    @media (max-width: 600px) { .hud { font-size:15px; } .arcade-nav { font-size:11px; padding:6px 10px; } }
     canvas { width:100%; height:100%; display:block; background:#070916; }
     .arcade-nav { position:absolute; top:16px; right:16px; z-index:100; background:rgba(0,0,0,0.7); border:2px solid #00f5ff; color:#00f5ff; padding:8px 16px; border-radius:8px; font-weight:bold; text-decoration:none; font-size:13px; box-shadow:0 0 15px rgba(0,245,255,0.4); }
-    .hud { position:absolute; top:16px; left:16px; font-family:monospace; font-size:20px; font-weight:bold; color:#00f5ff; text-shadow:0 0 10px #00f5ff; pointer-events:none; }
+    .hud { position:absolute; top:16px; left:16px; font-family:monospace; font-size:19px; font-weight:bold; color:#00f5ff; text-shadow:0 0 10px #00f5ff; pointer-events:none; }
+    .time-badge { color:#ffd32a; text-shadow:0 0 10px #ffd32a; }
     .hint { position:absolute; bottom:20px; left:50%; transform:translateX(-50%); font-size:14px; color:#94a3b8; pointer-events:none; font-weight:bold; text-align:center; }
-    #modal { position:absolute; inset:0; background:rgba(0,0,0,0.85); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; z-index:200; }
-    #modal h1 { color:#00f5ff; font-size:40px; text-shadow:0 0 20px #00f5ff; text-align:center; }
+    #modal { position:absolute; inset:0; background:rgba(0,0,0,0.88); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; z-index:200; }
+    #modal h1 { color:#00f5ff; font-size:38px; text-shadow:0 0 20px #00f5ff; text-align:center; }
     .btn { background:linear-gradient(135deg,#00f5ff,#ff007f); border:none; color:#000; padding:12px 32px; font-size:18px; font-weight:bold; border-radius:8px; cursor:pointer; text-decoration:none; box-shadow:0 0 20px rgba(0,245,255,0.5); }
   </style>
 </head>
 <body>
   <div id="canvas-container">
     <a href="https://marcuscaiado.github.io/marcus-arcade/" class="arcade-nav">🕹️ Arcade Hub</a>
-    <div class="hud">SCORE: <span id="score-val">0</span> | LIVES: <span id="lives-val">3</span> | COMBO: <span id="combo-val">0x</span></div>
-    <div class="hint">Swipe / Drag across glowing fruits to slice! Avoid glitch bombs 💣</div>
+    <div class="hud">SCORE: <span id="score-val">0</span> | TIME: <span id="time-val" class="time-badge">60s</span> | COMBO: <span id="combo-val">0x</span></div>
+    <div class="hint">⏱️ 60s Time Attack! Slice fruits, build massive combos, avoid bombs 💣</div>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
     
     <div id="modal">
       <h1 id="modal-title">NEON KATANA SLASH ⚔️</h1>
-      <p style="font-size:15px; color:#aaa;" id="modal-sub">Slice cyber fruits as they float at the top & dodge bombs</p>
-      <button class="btn" onclick="startGame()">DRAW KATANA ⚔️</button>
+      <p style="font-size:15px; color:#aaa; text-align:center;" id="modal-sub">60-Second Time Attack! Maximize your score for the Global Leaderboard.</p>
+      <button class="btn" onclick="startGame()">START 60s MATCH ⏱️</button>
       <a href="https://marcuscaiado.github.io/marcus-arcade/" class="btn" style="background:#222; color:#fff; border:1px solid #00f5ff;">ARCADE HUB 🕹️</a>
     </div>
   </div>
@@ -60,23 +61,38 @@
       { name: 'Cyber Star', emoji: '⭐', color: '#00f5ff', inner: '#fff', r: 28, pts: 200 }
     ];
 
-    let score = 0, lives = 3, combo = 0, comboTimer = 0, gameActive = false;
+    let score = 0, timeLeft = 60, combo = 0, maxCombo = 0, comboTimer = 0, gameActive = false;
     let fruits = [];
     let fruitHalves = [];
     let particles = [];
     let slashPoints = [];
+    let popups = [];
     let isMouseDown = false;
     let waveTimer = 0;
+    let timerInterval = null;
+    let screenShake = 0;
 
     function startGame() {
-      score = 0; lives = 3; combo = 0; comboTimer = 0;
-      fruits = []; fruitHalves = []; particles = []; slashPoints = [];
+      score = 0; timeLeft = 60; combo = 0; maxCombo = 0; comboTimer = 0;
+      fruits = []; fruitHalves = []; particles = []; slashPoints = []; popups = [];
       document.getElementById('score-val').textContent = '0';
-      document.getElementById('lives-val').textContent = '3';
+      document.getElementById('time-val').textContent = '60s';
       document.getElementById('combo-val').textContent = '0x';
       document.getElementById('modal').style.display = 'none';
       gameActive = true;
-      waveTimer = 30;
+      waveTimer = 20;
+
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        if (!gameActive) return;
+        timeLeft--;
+        document.getElementById('time-val').textContent = timeLeft + 's';
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          finishMatch();
+        }
+      }, 1000);
+
       requestAnimationFrame(loop);
     }
 
@@ -110,26 +126,30 @@
           f.sliced = true;
 
           if (f.isBomb) {
-            // Hit Bomb!
-            lives--;
-            document.getElementById('lives-val').textContent = lives;
+            // Hit Bomb: Penalty & shake, but do NOT end match!
+            score = Math.max(0, score - 200);
+            combo = 0;
+            document.getElementById('score-val').textContent = score;
+            document.getElementById('combo-val').textContent = '0x';
+            popups.push({ x: f.x, y: f.y, text: '-200 BOMB! 💣', color: '#ff0055', life: 1 });
             playSliceSfx(100);
-            for (let p=0; p<24; p++) {
+            screenShake = 15;
+
+            for (let p=0; p<20; p++) {
               particles.push({ x: f.x, y: f.y, vx:(Math.random()-0.5)*10, vy:(Math.random()-0.5)*10, color:'#ff0055', life:1.2, r: 4 });
-            }
-            if (lives <= 0) {
-              gameOver();
-              return;
             }
           } else {
             // Sliced Fruit!
             combo++;
-            comboTimer = 25;
+            if (combo > maxCombo) maxCombo = combo;
+            comboTimer = 35;
             const pts = f.pts * combo;
             score += pts;
             document.getElementById('score-val').textContent = score;
             document.getElementById('combo-val').textContent = combo + 'x';
-            playSliceSfx(600 + combo * 70);
+            playSliceSfx(550 + combo * 60);
+
+            popups.push({ x: f.x, y: f.y - 15, text: `+${pts} (${combo}x)`, color: f.color, life: 1 });
 
             // Spawn 2 split halves flying apart
             fruitHalves.push({
@@ -159,8 +179,8 @@
 
     // Launch graceful slow float wave (Fruit Ninja arc)
     function spawnWave() {
-      const count = Math.floor(Math.random() * 3) + 1; // 1 to 3 fruits per wave
-      const hasBomb = Math.random() < 0.22;
+      const count = Math.floor(Math.random() * 3) + 1;
+      const hasBomb = Math.random() < 0.2;
 
       for (let i = 0; i < count; i++) {
         const isBomb = (hasBomb && i === count - 1);
@@ -168,7 +188,7 @@
         
         // Gentle arc towards center, graceful apex float
         const targetApexX = 300 + Math.random() * 200;
-        const initialVy = -9.2 - Math.random() * 2.0; // gentle slow ascent
+        const initialVy = -9.2 - Math.random() * 2.0;
         const timeToApex = Math.abs(initialVy) / 0.11;
         const initialVx = (targetApexX - startX) / timeToApex;
 
@@ -196,7 +216,7 @@
       waveTimer--;
       if (waveTimer <= 0) {
         spawnWave();
-        waveTimer = 85 + Math.floor(Math.random() * 30); // smooth relaxed pace
+        waveTimer = 75 + Math.floor(Math.random() * 25);
       }
 
       // Combo Reset Timer
@@ -211,23 +231,13 @@
       // Update Fruits (Gentle low gravity for floating apex)
       for (let i = fruits.length - 1; i >= 0; i--) {
         const f = fruits[i];
-        f.vy += 0.11; // Low gentle gravity!
+        f.vy += 0.11;
         f.x += f.vx;
         f.y += f.vy;
         f.rot += f.rotSpeed;
 
-        // Bottom drop out
-        if (f.y > 660) {
-          if (!f.sliced && !f.isBomb) {
-            lives--;
-            document.getElementById('lives-val').textContent = lives;
-            if (lives <= 0) {
-              gameOver();
-              return;
-            }
-          }
-          fruits.splice(i, 1);
-        }
+        // Dropped fruit just falls off screen (NO PENALTY / NO DEFEAT)
+        if (f.y > 660) fruits.splice(i, 1);
       }
 
       // Update Halves
@@ -247,6 +257,13 @@
       }
 
       // Render
+      ctx.save();
+      if (screenShake > 0) {
+        ctx.translate((Math.random() - 0.5) * screenShake, (Math.random() - 0.5) * screenShake);
+        screenShake *= 0.88;
+        if (screenShake < 0.5) screenShake = 0;
+      }
+
       ctx.fillStyle = '#070916'; ctx.fillRect(0, 0, 800, 600);
 
       // Subtle Background Matrix Grid
@@ -262,14 +279,12 @@
         ctx.rotate(f.rot);
 
         if (f.isBomb) {
-          // Glitch Bomb
           ctx.fillStyle = '#ff0055';
           ctx.shadowColor = '#ff0055'; ctx.shadowBlur = 20;
           ctx.beginPath(); ctx.arc(0, 0, f.r, 0, Math.PI*2); ctx.fill();
           ctx.fillStyle = '#fff'; ctx.font = '24px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
           ctx.fillText('💣', 0, 0);
         } else {
-          // Glowing Cyber Fruit
           ctx.fillStyle = f.color;
           ctx.shadowColor = f.color; ctx.shadowBlur = 20;
           ctx.beginPath(); ctx.arc(0, 0, f.r, 0, Math.PI*2); ctx.fill();
@@ -296,6 +311,19 @@
         ctx.fill();
         ctx.restore();
       });
+
+      // Draw Popups
+      for (let i = popups.length - 1; i >= 0; i--) {
+        const pop = popups[i];
+        pop.y -= 1.2; pop.life -= 0.025;
+        if (pop.life <= 0) { popups.splice(i, 1); continue; }
+        ctx.fillStyle = pop.color;
+        ctx.globalAlpha = pop.life;
+        ctx.font = 'bold 18px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(pop.text, pop.x, pop.y);
+        ctx.globalAlpha = 1;
+      }
 
       // Draw Katana Blade Slash Trail
       if (slashPoints.length > 1) {
@@ -326,13 +354,14 @@
         ctx.globalAlpha = 1;
       }
 
+      ctx.restore();
       requestAnimationFrame(loop);
     }
 
-    function gameOver() {
+    function finishMatch() {
       gameActive = false;
-      document.getElementById('modal-title').textContent = 'GAME OVER! 🍉';
-      document.getElementById('modal-sub').textContent = `FINAL SCORE: ${score.toLocaleString()}`;
+      document.getElementById('modal-title').textContent = "TIME'S UP! ⏱️";
+      document.getElementById('modal-sub').textContent = `FINAL SCORE: ${score.toLocaleString()} PTS | MAX COMBO: ${maxCombo}x`;
       document.getElementById('modal').style.display = 'flex';
       try {
         if (window.ArcadeLeaderboard) {
