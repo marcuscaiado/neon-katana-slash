@@ -231,9 +231,11 @@
 
     // Launch authentic, wide-dispersion Fruit Ninja wave (More Fruits, RARE Powerups)
     function spawnWave() {
-      const session = window.ArcadeDifficulty ? ArcadeDifficulty.getSessionTier(60 - timeLeft, score, 2500) : { tier: 1, multiplier: 1.0 };
+      const session = (window.ArcadeDifficulty && typeof window.ArcadeDifficulty.getSessionTier === 'function')
+        ? ArcadeDifficulty.getSessionTier(60 - timeLeft, score, 2500)
+        : { tier: (timeLeft < 25 ? 3 : (timeLeft < 45 ? 2 : 1)), multiplier: 1.0 };
       const tier = session.tier;
-      const ddaMult = session.multiplier;
+      const ddaMult = session.multiplier || 1.0;
 
       // MORE FRUITS: Tier 1: 4-6 fruits; Tier 2: 6-8 fruits; Tier 3: 7-10 fruits
       const minFruits = tier === 1 ? 4 : (tier === 2 ? 6 : 7);
@@ -248,7 +250,9 @@
       // Max 1 per wave, requires cooldown <= 0, freezeTimer == 0, base chance ~4.5% decaying exponentially
       let hasPowerup = false;
       if (powerupCooldown <= 0 && freezeTimer <= 0) {
-        const powerRatio = window.ArcadeDifficulty ? ArcadeDifficulty.scaleDropRate(0.048, 0.014, 0.012) : 0.035;
+        const powerRatio = (window.ArcadeDifficulty && typeof window.ArcadeDifficulty.scaleDropRate === 'function')
+          ? ArcadeDifficulty.scaleDropRate(0.048, 0.014, 0.012)
+          : 0.035;
         if (Math.random() < powerRatio) {
           hasPowerup = true;
           powerupCooldown = 650; // At least 11 seconds cooldown
@@ -348,7 +352,10 @@
       if (waveTimer <= 0) {
         spawnWave();
         const baseInterval = 72 + Math.floor(Math.random() * 22);
-        waveTimer = window.ArcadeDifficulty ? ArcadeDifficulty.scaleInterval(baseInterval, score, 2500, 46, 1.8) : baseInterval;
+        const scaleFn = (window.ArcadeDifficulty && typeof window.ArcadeDifficulty.scaleInterval === 'function')
+          ? ArcadeDifficulty.scaleInterval
+          : null;
+        waveTimer = scaleFn ? scaleFn(baseInterval, score, 2500, 46, 1.8) : baseInterval;
       }
 
       // Combo Reset Timer
