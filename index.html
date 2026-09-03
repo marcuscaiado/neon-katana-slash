@@ -35,7 +35,7 @@
   <div id="canvas-container">
     <a href="https://marcuscaiado.github.io/marcus-arcade/" class="arcade-nav" target="_top" onclick="if(window.top){window.top.location.href=this.href;return false;}" ontouchend="if(window.top){window.top.location.href=this.href;return false;}">🕹️ Arcade Hub</a>
     <div class="hud">SCORE: <span id="score-val">0</span> | TIME: <span id="time-val" class="time-badge">60s</span> | COMBO: <span id="combo-val">0x</span></div>
-    <div class="hint">⏱️ 60s Time Attack! Slice fruits, build massive combos, avoid bombs 💣</div>
+    <div class="hint">⏱️ 60s Time Attack! Slice fruits across wide arcs, build combos, avoid bombs 💣</div>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
     
     <div id="modal">
@@ -64,14 +64,22 @@
       } catch(e){}
     }
 
-    const FRUIT_TYPES = [
+    // 1. RICH VARIETY OF STANDARD ARCADE FRUITS (High frequency, diverse arcs)
+    const STANDARD_FRUITS = [
       { name: 'Watermelon', emoji: '🍉', color: '#05ffa1', inner: '#ff007f', r: 34, pts: 50 },
-      { name: 'Orange', emoji: '🍊', color: '#ff9f43', inner: '#ffd32a', r: 30, pts: 75 },
+      { name: 'Neon Orange', emoji: '🍊', color: '#ff9f43', inner: '#ffd32a', r: 30, pts: 75 },
       { name: 'Plasma Berry', emoji: '🍓', color: '#ff007f', inner: '#ff5e57', r: 26, pts: 100 },
-      { name: 'Pineapple', emoji: '🍍', color: '#ffd32a', inner: '#05ffa1', r: 32, pts: 150 },
-      { name: 'Cyber Star', emoji: '⭐', color: '#00f5ff', inner: '#fff', r: 28, pts: 200 },
-      { name: 'Freeze Clock', emoji: '❄️', color: '#00f5ff', inner: '#ffffff', r: 30, pts: 150, isFreeze: true },
-      { name: 'Time Booster', emoji: '⏱️', color: '#ffd32a', inner: '#fff', r: 30, pts: 150, isTimePlus: true }
+      { name: 'Cyber Pineapple', emoji: '🍍', color: '#ffd32a', inner: '#05ffa1', r: 32, pts: 125 },
+      { name: 'Golden Banana', emoji: '🍌', color: '#f1c40f', inner: '#ffffff', r: 28, pts: 150 },
+      { name: 'Kiwi Slicer', emoji: '🥝', color: '#2ecc71', inner: '#27ae60', r: 27, pts: 175 },
+      { name: 'Cyber Star', emoji: '⭐', color: '#00f5ff', inner: '#ffffff', r: 29, pts: 200 },
+      { name: 'Dragonfruit Neo', emoji: '🐲', color: '#ff007f', inner: '#ffffff', r: 34, pts: 250 }
+    ];
+
+    // 2. RARE SPECIAL POWER-UPS (Low ratio, gated by cooldown & exponential decay)
+    const UTILITY_POWERUPS = [
+      { name: 'Freeze Clock', emoji: '❄️', color: '#00f5ff', inner: '#ffffff', r: 30, pts: 100, isFreeze: true },
+      { name: 'Time Booster', emoji: '⏱️', color: '#ffd32a', inner: '#ffffff', r: 30, pts: 100, isTimePlus: true }
     ];
 
     let score = 0, timeLeft = 60, combo = 0, maxCombo = 0, comboTimer = 0, gameActive = false;
@@ -80,22 +88,25 @@
     let particles = [];
     let slashPoints = [];
     let popups = [];
+    let pendingSpawns = [];
     let isMouseDown = false;
     let waveTimer = 0;
     let timerInterval = null;
     let screenShake = 0;
     let freezeTimer = 0;
+    let powerupCooldown = 0;
 
     function startGame() {
       if (window.ArcadeDifficulty) ArcadeDifficulty.reset();
       score = 0; timeLeft = 60; combo = 0; maxCombo = 0; comboTimer = 0; freezeTimer = 0;
-      fruits = []; fruitHalves = []; particles = []; slashPoints = []; popups = [];
+      powerupCooldown = 300; // 5s initial buffer before any powerup can spawn
+      fruits = []; fruitHalves = []; particles = []; slashPoints = []; popups = []; pendingSpawns = [];
       document.getElementById('score-val').textContent = '0';
       document.getElementById('time-val').textContent = '60s';
       document.getElementById('combo-val').textContent = '0x';
       document.getElementById('modal').style.display = 'none';
       gameActive = true;
-      waveTimer = 20;
+      waveTimer = 15;
 
       if (timerInterval) clearInterval(timerInterval);
       timerInterval = setInterval(() => {
@@ -138,27 +149,35 @@
         if (f.sliced) continue;
         const d = Math.hypot(sx - f.x, sy - f.y);
         // Generous blade slice radius
-        if (d < f.r + 16) {
+        if (d < f.r + 18) {
           f.sliced = true;
 
+          const rect = canvas.getBoundingClientRect();
+          const clientX = rect.left + (f.x / 800) * rect.width;
+          const clientY = rect.top + (f.y / 600) * rect.height;
+
           if (f.isBomb) {
-            // Hit Bomb: Penalty & shake, but do NOT end match!
-            score = Math.max(0, score - 150);
+            // Hit Bomb: Devastating -30% score penalty + combo reset (eliminates brainless swiping)
+            const penalty = Math.max(150, Math.round(score * 0.30));
+            score = Math.max(0, score - penalty);
             combo = 0;
             document.getElementById('score-val').textContent = score;
             document.getElementById('combo-val').textContent = '0x';
-            popups.push({ x: f.x, y: f.y, text: '-150 BOMB! 💣', color: '#ff0055', life: 1 });
-            if (window.arcadeAudio) window.arcadeAudio.playSoftThud(1.4);
-            screenShake = 15;
+            popups.push({ x: f.x, y: f.y, text: `-${penalty} BOMB! 💣`, color: '#ff0055', life: 1.2 });
+            if (window.DopamineJuice) {
+              window.DopamineJuice.spawnScore(clientX, clientY, `-${penalty} BOMB! 💣`, 1);
+            }
+            if (window.arcadeAudio) window.arcadeAudio.playSoftThud(1.8);
+            screenShake = 24;
 
-            for (let p=0; p<20; p++) {
-              particles.push({ x: f.x, y: f.y, vx:(Math.random()-0.5)*10, vy:(Math.random()-0.5)*10, color:'#ff0055', life:1.2, r: 4 });
+            for (let p=0; p<24; p++) {
+              particles.push({ x: f.x, y: f.y, vx:(Math.random()-0.5)*12, vy:(Math.random()-0.5)*12, color:'#ff0055', life:1.2, r: 4 });
             }
           } else {
             // Sliced Fruit!
             combo++;
             if (combo > maxCombo) maxCombo = combo;
-            comboTimer = 55; // Generous combo link window
+            comboTimer = 45; // 0.75s combo link window
             const pts = f.pts * combo;
             score += pts;
             document.getElementById('score-val').textContent = score;
@@ -169,23 +188,28 @@
             }
 
             if (f.isFreeze) {
-              freezeTimer = 220; // 3.5s Matrix Freeze
+              freezeTimer = 160; // ~2.6s Matrix Freeze (balanced duration)
+              powerupCooldown = 750; // At least 12.5s before another powerup
               popups.push({ x: f.x, y: f.y - 20, text: '❄️ FREEZE TIME!', color: '#00f5ff', life: 1.2 });
+              if (window.DopamineJuice) window.DopamineJuice.spawnScore(clientX, clientY, '❄️ FREEZE!', 3);
             } else if (f.isTimePlus) {
-              timeLeft += 5;
+              timeLeft += 3; // +3s bonus
+              powerupCooldown = 750;
               document.getElementById('time-val').textContent = timeLeft + 's';
-              popups.push({ x: f.x, y: f.y - 20, text: '+5 SECONDS! ⏱️', color: '#ffd32a', life: 1.2 });
+              popups.push({ x: f.x, y: f.y - 20, text: '+3 SECONDS! ⏱️', color: '#ffd32a', life: 1.2 });
+              if (window.DopamineJuice) window.DopamineJuice.spawnScore(clientX, clientY, '+3s ⏱️', 3);
             } else {
               popups.push({ x: f.x, y: f.y - 15, text: `+${pts} (${combo}x)`, color: f.color, life: 1 });
+              if (window.DopamineJuice) window.DopamineJuice.spawnScore(clientX, clientY, `+${pts} (${combo}x)`, combo);
             }
 
             // Spawn 2 split halves flying apart
             fruitHalves.push({
-              x: f.x - 8, y: f.y, vx: f.vx - 3.5, vy: f.vy - 1.5, rot: f.rot, rotSpeed: -0.08, r: f.r,
+              x: f.x - 8, y: f.y, vx: f.vx - 3.8, vy: f.vy - 1.8, rot: f.rot, rotSpeed: -0.09, r: f.r,
               color: f.color, inner: f.inner, emoji: f.emoji, side: -1
             });
             fruitHalves.push({
-              x: f.x + 8, y: f.y, vx: f.vx + 3.5, vy: f.vy - 1.5, rot: f.rot, rotSpeed: 0.08, r: f.r,
+              x: f.x + 8, y: f.y, vx: f.vx + 3.8, vy: f.vy - 1.8, rot: f.rot, rotSpeed: 0.09, r: f.r,
               color: f.color, inner: f.inner, emoji: f.emoji, side: 1
             });
 
@@ -205,36 +229,101 @@
       }
     }
 
-    // Launch graceful slow float wave (Fruit Ninja arc)
+    // Launch authentic, wide-dispersion Fruit Ninja wave (More Fruits, RARE Powerups)
     function spawnWave() {
-      const ddaMult = window.ArcadeDifficulty ? ArcadeDifficulty.getMultiplier(score, 1800, 2.0) : 1.0;
-      const count = window.ArcadeDifficulty ? ArcadeDifficulty.scaleCount(Math.floor(Math.random() * 3) + 2, score, 1800, 6) : (Math.floor(Math.random() * 3) + 2);
-      const hasBomb = Math.random() < Math.min(0.38, 0.18 * ddaMult);
+      const session = window.ArcadeDifficulty ? ArcadeDifficulty.getSessionTier(60 - timeLeft, score, 2500) : { tier: 1, multiplier: 1.0 };
+      const tier = session.tier;
+      const ddaMult = session.multiplier;
 
-      for (let i = 0; i < count; i++) {
-        const isBomb = (hasBomb && i === count - 1);
-        const startX = 140 + Math.random() * 520;
-        
-        // Gentle arc towards center, graceful apex float
-        const targetApexX = 300 + Math.random() * 200;
-        const initialVy = -9.0 - Math.random() * 2.0;
-        const timeToApex = Math.abs(initialVy) / 0.11;
+      // MORE FRUITS: Tier 1: 4-6 fruits; Tier 2: 6-8 fruits; Tier 3: 7-10 fruits
+      const minFruits = tier === 1 ? 4 : (tier === 2 ? 6 : 7);
+      const maxFruits = tier === 1 ? 6 : (tier === 2 ? 8 : 10);
+      const totalItems = Math.floor(Math.random() * (maxFruits - minFruits + 1)) + minFruits;
+
+      // Bomb chance scales with tier (Tier 1: 20%, Tier 2: 38%, Tier 3: 52%)
+      const bombChance = tier === 1 ? 0.20 : (tier === 2 ? 0.38 : 0.52);
+      const bombCount = Math.random() < bombChance ? (tier === 3 && Math.random() < 0.35 ? 2 : 1) : 0;
+
+      // STRICTLY CONTROLLED RARE POWER-UPS ("less power ratio"):
+      // Max 1 per wave, requires cooldown <= 0, freezeTimer == 0, base chance ~4.5% decaying exponentially
+      let hasPowerup = false;
+      if (powerupCooldown <= 0 && freezeTimer <= 0) {
+        const powerRatio = window.ArcadeDifficulty ? ArcadeDifficulty.scaleDropRate(0.048, 0.014, 0.012) : 0.035;
+        if (Math.random() < powerRatio) {
+          hasPowerup = true;
+          powerupCooldown = 650; // At least 11 seconds cooldown
+        }
+      }
+
+      // Pick trajectory formation: 0=Left->Right Cross, 1=Right->Left Cross, 2=Fountain, 3=Dual Flank
+      const formation = Math.floor(Math.random() * 4);
+
+      for (let i = 0; i < totalItems; i++) {
+        let startX, targetApexX, targetApexY;
+
+        if (formation === 0) {
+          // Left-to-Right sweep
+          startX = 60 + Math.random() * 220;
+          targetApexX = 350 + Math.random() * 370;
+          targetApexY = 120 + Math.random() * 180;
+        } else if (formation === 1) {
+          // Right-to-Left sweep
+          startX = 520 + Math.random() * 220;
+          targetApexX = 80 + Math.random() * 370;
+          targetApexY = 120 + Math.random() * 180;
+        } else if (formation === 2) {
+          // Wide Fountain Spread
+          startX = 260 + Math.random() * 280;
+          targetApexX = 80 + (i / totalItems) * 640 + (Math.random() - 0.5) * 60;
+          targetApexY = 110 + Math.random() * 160;
+        } else {
+          // Dual Flank Crossfire
+          if (i % 2 === 0) {
+            startX = 70 + Math.random() * 180;
+            targetApexX = 360 + Math.random() * 280;
+          } else {
+            startX = 550 + Math.random() * 180;
+            targetApexX = 160 + Math.random() * 280;
+          }
+          targetApexY = 130 + Math.random() * 170;
+        }
+
+        // Gravitational launch velocity calculation (Snappy arcade physics)
+        const gravity = 0.155;
+        const deltaY = 620 - targetApexY;
+        const initialVy = -Math.sqrt(2 * gravity * deltaY) * (tier === 1 ? 0.98 : (tier === 2 ? 1.05 : 1.12));
+        const timeToApex = Math.abs(initialVy) / gravity;
         const initialVx = (targetApexX - startX) / timeToApex;
 
-        if (isBomb) {
-          fruits.push({
-            x: startX, y: 620, vx: initialVx, vy: initialVy, r: 28,
-            rot: 0, rotSpeed: (Math.random() - 0.5) * 0.04,
-            isBomb: true, sliced: false, emoji: '💣'
-          });
+        // Determine item type
+        let isBomb = false;
+        let fruitData;
+
+        if (bombCount > 0 && (i === totalItems - 1 || (bombCount === 2 && i === Math.floor(totalItems / 2)))) {
+          isBomb = true;
+        } else if (hasPowerup && i === 0) {
+          // Rare powerup: 50% freeze (if not frozen), 50% time booster
+          const puIndex = (freezeTimer > 0) ? 1 : Math.floor(Math.random() * UTILITY_POWERUPS.length);
+          fruitData = UTILITY_POWERUPS[puIndex];
+          hasPowerup = false; // Only 1 power-up permitted per wave
         } else {
-          const type = FRUIT_TYPES[Math.floor(Math.random() * FRUIT_TYPES.length)];
-          fruits.push({
-            x: startX, y: 620, vx: initialVx, vy: initialVy, r: type.r,
-            rot: 0, rotSpeed: (Math.random() - 0.5) * 0.05,
-            isBomb: false, sliced: false, ...type
-          });
+          fruitData = STANDARD_FRUITS[Math.floor(Math.random() * STANDARD_FRUITS.length)];
         }
+
+        // Staggered stream launch delay (0ms to 240ms) for natural flowing cascades
+        const delayFrames = Math.floor(i * (Math.random() * 4 + 2));
+        pendingSpawns.push({
+          delay: delayFrames,
+          item: {
+            x: startX, y: 620, vx: initialVx, vy: initialVy,
+            r: isBomb ? 28 : fruitData.r,
+            rot: Math.random() * Math.PI * 2,
+            rotSpeed: (Math.random() - 0.5) * 0.06,
+            isBomb,
+            sliced: false,
+            ...(isBomb ? { emoji: '💣' } : fruitData)
+          }
+        });
       }
     }
 
@@ -243,13 +332,23 @@
 
       const timeScale = freezeTimer > 0 ? 0.45 : 1.0;
       if (freezeTimer > 0) freezeTimer--;
+      if (powerupCooldown > 0) powerupCooldown--;
 
-      // Wave Spawning with anticipation interval
+      // Process pending staggered spawns
+      for (let i = pendingSpawns.length - 1; i >= 0; i--) {
+        pendingSpawns[i].delay--;
+        if (pendingSpawns[i].delay <= 0) {
+          fruits.push(pendingSpawns[i].item);
+          pendingSpawns.splice(i, 1);
+        }
+      }
+
+      // Continuous Wave Spawning
       waveTimer--;
       if (waveTimer <= 0) {
         spawnWave();
-        const baseInterval = 75 + Math.floor(Math.random() * 25);
-        waveTimer = window.ArcadeDifficulty ? ArcadeDifficulty.scaleInterval(baseInterval, score, 1800, 48, 1.7) : baseInterval;
+        const baseInterval = 72 + Math.floor(Math.random() * 22);
+        waveTimer = window.ArcadeDifficulty ? ArcadeDifficulty.scaleInterval(baseInterval, score, 2500, 46, 1.8) : baseInterval;
       }
 
       // Combo Reset Timer
@@ -261,22 +360,28 @@
         }
       }
 
-      // Update Fruits (Gentle low gravity for floating apex)
+      // Update Fruits (Snappy, authentic Fruit Ninja arc gravity)
       for (let i = fruits.length - 1; i >= 0; i--) {
         const f = fruits[i];
-        f.vy += 0.11 * timeScale;
+        f.vy += 0.155 * timeScale;
         f.x += f.vx * timeScale;
         f.y += f.vy * timeScale;
         f.rot += f.rotSpeed * timeScale;
 
-        // Dropped fruit just falls off screen (NO PENALTY / NO DEFEAT)
-        if (f.y > 660) fruits.splice(i, 1);
+        // Dropped unsliced fruit resets active combo streak
+        if (f.y > 660) {
+          if (!f.sliced && !f.isBomb && combo > 0) {
+            combo = 0;
+            document.getElementById('combo-val').textContent = '0x';
+          }
+          fruits.splice(i, 1);
+        }
       }
 
       // Update Halves
       for (let i = fruitHalves.length - 1; i >= 0; i--) {
         const h = fruitHalves[i];
-        h.vy += 0.16;
+        h.vy += 0.18;
         h.x += h.vx;
         h.y += h.vy;
         h.rot += h.rotSpeed;
@@ -313,7 +418,7 @@
 
         if (f.isBomb) {
           ctx.fillStyle = '#ff0055';
-          ctx.shadowColor = '#ff0055'; ctx.shadowBlur = 20;
+          ctx.shadowColor = '#ff0055'; ctx.shadowBlur = 22;
           ctx.beginPath(); ctx.arc(0, 0, f.r, 0, Math.PI*2); ctx.fill();
           ctx.fillStyle = '#fff'; ctx.font = '24px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
           ctx.fillText('💣', 0, 0);
