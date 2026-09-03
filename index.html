@@ -163,15 +163,16 @@
             combo = 0;
             document.getElementById('score-val').textContent = score;
             document.getElementById('combo-val').textContent = '0x';
-            popups.push({ x: f.x, y: f.y, text: `-${penalty} BOMB! 💣`, color: '#ff0055', life: 1.2 });
+            popups.push({ x: f.x, y: f.y, text: `-${penalty} BOMB! 💣`, color: '#d000ff', life: 1.2 });
             if (window.DopamineJuice) {
               window.DopamineJuice.spawnScore(clientX, clientY, `-${penalty} BOMB! 💣`, 1);
             }
             if (window.arcadeAudio) window.arcadeAudio.playSoftThud(1.8);
             screenShake = 24;
 
-            for (let p=0; p<24; p++) {
-              particles.push({ x: f.x, y: f.y, vx:(Math.random()-0.5)*12, vy:(Math.random()-0.5)*12, color:'#ff0055', life:1.2, r: 4 });
+            for (let p=0; p<28; p++) {
+              const pColor = ['#d000ff', '#e879f9', '#ffffff', '#a855f7', '#ff3838'][Math.floor(Math.random() * 5)];
+              particles.push({ x: f.x, y: f.y, vx:(Math.random()-0.5)*14, vy:(Math.random()-0.5)*14, color: pColor, life:1.2, r: Math.random()*3 + 2.5 });
             }
           } else {
             // Sliced Fruit!
@@ -424,11 +425,95 @@
         ctx.rotate(f.rot);
 
         if (f.isBomb) {
-          ctx.fillStyle = '#ff0055';
-          ctx.shadowColor = '#ff0055'; ctx.shadowBlur = 22;
-          ctx.beginPath(); ctx.arc(0, 0, f.r, 0, Math.PI*2); ctx.fill();
-          ctx.fillStyle = '#fff'; ctx.font = '24px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-          ctx.fillText('💣', 0, 0);
+          const nowMs = performance.now();
+          const pulse = Math.sin(nowMs * 0.009);
+
+          // 1. Concentric Pulsing Neon Purple Hazard Aura Ring (Animated dashed rotation)
+          ctx.save();
+          ctx.shadowColor = '#d000ff';
+          ctx.shadowBlur = 26 + pulse * 8;
+          ctx.strokeStyle = `rgba(208, 0, 255, ${0.7 + pulse * 0.25})`;
+          ctx.lineWidth = 2.8;
+          ctx.setLineDash([7, 5]);
+          ctx.lineDashOffset = -nowMs * 0.04;
+          ctx.beginPath();
+          ctx.arc(0, 0, f.r + 7 + pulse * 2.5, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+
+          // 2. Sparking Wick / Fuse at Top
+          ctx.save();
+          ctx.strokeStyle = '#c084fc';
+          ctx.lineWidth = 3.5;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(0, -f.r + 2);
+          ctx.quadraticCurveTo(f.r * 0.35, -f.r - 8, f.r * 0.15, -f.r - 14);
+          ctx.stroke();
+
+          // High-Voltage Fuse Sparks
+          const sparkSize = 4.5 + Math.random() * 3.5;
+          ctx.fillStyle = '#fffa65';
+          ctx.shadowColor = '#ff3838';
+          ctx.shadowBlur = 18;
+          ctx.beginPath();
+          ctx.arc(f.r * 0.15, -f.r - 14, sparkSize, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(f.r * 0.15, -f.r - 14, sparkSize * 0.45, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+
+          // 3. Deep Neon Purple Metallic Sphere (3D Multi-Stop Radial Gradient)
+          ctx.save();
+          ctx.shadowColor = '#b000ff';
+          ctx.shadowBlur = 30;
+          const bodyGrad = ctx.createRadialGradient(-f.r * 0.32, -f.r * 0.32, f.r * 0.08, 0, 0, f.r);
+          bodyGrad.addColorStop(0, '#9333ea');    // Vibrant electric purple
+          bodyGrad.addColorStop(0.35, '#6b21a8'); // Royal cyber purple
+          bodyGrad.addColorStop(0.72, '#3b0764'); // Deep dark violet
+          bodyGrad.addColorStop(1, '#150024');    // Obsidian rim
+          ctx.fillStyle = bodyGrad;
+          ctx.beginPath();
+          ctx.arc(0, 0, f.r, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Outer Neon Border
+          ctx.strokeStyle = '#e879f9';
+          ctx.lineWidth = 2.2;
+          ctx.stroke();
+          ctx.restore();
+
+          // 4. Specular Gloss / Glass Reflection Sheen (Top-Left Crescent)
+          ctx.save();
+          ctx.beginPath();
+          ctx.ellipse(-f.r * 0.35, -f.r * 0.35, f.r * 0.52, f.r * 0.24, -Math.PI / 4, 0, Math.PI * 2);
+          const glossGrad = ctx.createLinearGradient(-f.r * 0.6, -f.r * 0.6, 0, 0);
+          glossGrad.addColorStop(0, 'rgba(255, 255, 255, 0.92)');
+          glossGrad.addColorStop(0.5, 'rgba(240, 190, 255, 0.45)');
+          glossGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+          ctx.fillStyle = glossGrad;
+          ctx.fill();
+
+          // Secondary Bottom Rim Specular Bounce
+          ctx.beginPath();
+          ctx.arc(0, 0, f.r - 2.5, Math.PI * 0.28, Math.PI * 0.72);
+          ctx.strokeStyle = 'rgba(216, 180, 254, 0.65)';
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+          ctx.restore();
+
+          // 5. Central High-Contrast Hazard Symbol (White & Electric Pink with Crisp Glow)
+          ctx.save();
+          ctx.fillStyle = '#ffffff';
+          ctx.shadowColor = '#f43f5e';
+          ctx.shadowBlur = 10;
+          ctx.font = 'bold 22px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('💣', 0, 2);
+          ctx.restore();
         } else {
           ctx.fillStyle = f.color;
           ctx.shadowColor = f.color; ctx.shadowBlur = 20;
