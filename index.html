@@ -4,15 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Neon Katana Slash ⚔️🍉 — 60s Time Attack</title>
+  <script src="arcade-sound-engine.js"></script>
   <script src="arcade-leaderboard.js"></script>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; touch-action:none; user-select:none; }
     body { background:#070916; color:#fff; font-family:'Segoe UI',sans-serif; overflow:hidden; display:flex; justify-content:center; align-items:center; height:100vh; }
     #canvas-container { position:relative; width:100vw; height:100vh; max-width:800px; }
-    @media (max-width: 600px) { .hud { font-size:15px; } .arcade-nav { font-size:11px; padding:6px 10px; } }
-    canvas { width:100%; height:100%; display:block; background:#070916; cursor:crosshair; }
+    @media (max-width: 600px) { .hud { z-index:20;  font-size:15px;  } .arcade-nav { font-size:11px; padding:6px 10px; } }
+    canvas:not(#dopamine-confetti-canvas) { width:100%; height:100%; display:block; background:#070916; cursor:crosshair; }
     .arcade-nav { position:absolute; top:16px; right:16px; z-index:100; background:rgba(0,0,0,0.7); border:2px solid #00f5ff; color:#00f5ff; padding:8px 16px; border-radius:8px; font-weight:bold; text-decoration:none; font-size:13px; box-shadow:0 0 15px rgba(0,245,255,0.4); }
-    .hud { position:absolute; top:16px; left:16px; font-family:monospace; font-size:19px; font-weight:bold; color:#00f5ff; text-shadow:0 0 10px #00f5ff; pointer-events:none; }
+    .hud { z-index:20;  position:absolute; top:16px; left:16px; font-family:monospace; font-size:19px; font-weight:bold; color:#00f5ff; text-shadow:0 0 10px #00f5ff; pointer-events:none;  }
     .time-badge { color:#ffd32a; text-shadow:0 0 10px #ffd32a; }
     .hint { position:absolute; bottom:20px; left:50%; transform:translateX(-50%); font-size:14px; color:#94a3b8; pointer-events:none; font-weight:bold; text-align:center; }
     #modal { position:absolute; inset:0; background:rgba(0,0,0,0.88); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; z-index:200; }
@@ -136,7 +137,7 @@
             document.getElementById('score-val').textContent = score;
             document.getElementById('combo-val').textContent = '0x';
             popups.push({ x: f.x, y: f.y, text: '-150 BOMB! 💣', color: '#ff0055', life: 1 });
-            playSliceSfx(100);
+            if (window.arcadeAudio) window.arcadeAudio.playSoftThud(1.4);
             screenShake = 15;
 
             for (let p=0; p<20; p++) {
@@ -151,7 +152,10 @@
             score += pts;
             document.getElementById('score-val').textContent = score;
             document.getElementById('combo-val').textContent = combo + 'x';
-            playSliceSfx(550 + combo * 60);
+            if (window.arcadeAudio) {
+              window.arcadeAudio.playSlice(combo);
+              window.arcadeAudio.playCollectStreak(combo);
+            }
 
             if (f.isFreeze) {
               freezeTimer = 220; // 3.5s Matrix Freeze
@@ -376,6 +380,7 @@
 
     function finishMatch() {
       gameActive = false;
+      if (window.arcadeAudio) window.arcadeAudio.playTriumph();
       document.getElementById('modal-title').textContent = "TIME'S UP! ⏱️";
       document.getElementById('modal-sub').textContent = `FINAL SCORE: ${score.toLocaleString()} PTS | MAX COMBO: ${maxCombo}x`;
       document.getElementById('modal').style.display = 'flex';
