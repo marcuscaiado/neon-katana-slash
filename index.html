@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Neon Katana Slash ⚔️🍉 — 60s Time Attack</title>
   <script src="arcade-sound-engine.js"></script>
+  <script src="arcade-difficulty.js"></script>
   <script src="arcade-leaderboard.js"></script>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; touch-action:none; user-select:none; }
@@ -77,6 +78,7 @@
     let freezeTimer = 0;
 
     function startGame() {
+      if (window.ArcadeDifficulty) ArcadeDifficulty.reset();
       score = 0; timeLeft = 60; combo = 0; maxCombo = 0; comboTimer = 0; freezeTimer = 0;
       fruits = []; fruitHalves = []; particles = []; slashPoints = []; popups = [];
       document.getElementById('score-val').textContent = '0';
@@ -196,8 +198,9 @@
 
     // Launch graceful slow float wave (Fruit Ninja arc)
     function spawnWave() {
-      const count = Math.floor(Math.random() * 3) + 2;
-      const hasBomb = Math.random() < 0.18;
+      const ddaMult = window.ArcadeDifficulty ? ArcadeDifficulty.getMultiplier(score, 1800, 2.0) : 1.0;
+      const count = window.ArcadeDifficulty ? ArcadeDifficulty.scaleCount(Math.floor(Math.random() * 3) + 2, score, 1800, 6) : (Math.floor(Math.random() * 3) + 2);
+      const hasBomb = Math.random() < Math.min(0.38, 0.18 * ddaMult);
 
       for (let i = 0; i < count; i++) {
         const isBomb = (hasBomb && i === count - 1);
@@ -236,7 +239,8 @@
       waveTimer--;
       if (waveTimer <= 0) {
         spawnWave();
-        waveTimer = 75 + Math.floor(Math.random() * 25);
+        const baseInterval = 75 + Math.floor(Math.random() * 25);
+        waveTimer = window.ArcadeDifficulty ? ArcadeDifficulty.scaleInterval(baseInterval, score, 1800, 48, 1.7) : baseInterval;
       }
 
       // Combo Reset Timer
