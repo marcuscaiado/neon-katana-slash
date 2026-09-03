@@ -20,11 +20,20 @@
     #modal { position:absolute; inset:0; background:rgba(0,0,0,0.88); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; z-index:200; }
     #modal h1 { color:#00f5ff; font-size:38px; text-shadow:0 0 20px #00f5ff; text-align:center; }
     .btn { background:linear-gradient(135deg,#00f5ff,#ff007f); border:none; color:#000; padding:12px 32px; font-size:18px; font-weight:bold; border-radius:8px; cursor:pointer; text-decoration:none; box-shadow:0 0 20px rgba(0,245,255,0.5); }
-  </style>
+  
+/* Universal Mobile Touch & Top Navigation Safeguards */
+.arcade-nav, .arcade-link, .nav-btn-arcade, .arcade-corner-btn, .arcade-btn, .btn-arcade, a[href*="arcad"], #modal a, #modal button, .modal a, .modal button, #game-over-modal a, #game-over-modal button {
+  pointer-events: auto !important;
+  touch-action: auto !important;
+  cursor: pointer !important;
+  -webkit-tap-highlight-color: rgba(0, 245, 255, 0.4);
+}
+
+</style>
 </head>
 <body>
   <div id="canvas-container">
-    <a href="https://marcuscaiado.github.io/marcus-arcade/" class="arcade-nav">🕹️ Arcade Hub</a>
+    <a href="https://marcuscaiado.github.io/marcus-arcade/" class="arcade-nav" target="_top" onclick="if(window.top){window.top.location.href=this.href;return false;}" ontouchend="if(window.top){window.top.location.href=this.href;return false;}">🕹️ Arcade Hub</a>
     <div class="hud">SCORE: <span id="score-val">0</span> | TIME: <span id="time-val" class="time-badge">60s</span> | COMBO: <span id="combo-val">0x</span></div>
     <div class="hint">⏱️ 60s Time Attack! Slice fruits, build massive combos, avoid bombs 💣</div>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
@@ -33,7 +42,7 @@
       <h1 id="modal-title">NEON KATANA SLASH ⚔️</h1>
       <p style="font-size:15px; color:#aaa; text-align:center;" id="modal-sub">60-Second Time Attack! Maximize your score for the Global Leaderboard.</p>
       <button class="btn" onclick="startGame()">START 60s MATCH ⏱️</button>
-      <a href="https://marcuscaiado.github.io/marcus-arcade/" class="btn" style="background:#222; color:#fff; border:1px solid #00f5ff;">ARCADE HUB 🕹️</a>
+      <a href="https://marcuscaiado.github.io/marcus-arcade/" class="btn" style="background:#222; color:#fff; border:1px solid #00f5ff;" target="_top" onclick="if(window.top){window.top.location.href=this.href;return false;}" ontouchend="if(window.top){window.top.location.href=this.href;return false;}">ARCADE HUB 🕹️</a>
     </div>
   </div>
 
@@ -120,7 +129,7 @@
     window.addEventListener('mouseup', () => { isMouseDown = false; });
 
     window.addEventListener('touchstart', e => { isMouseDown = true; const p = getCanvasPos(e.touches[0].clientX, e.touches[0].clientY); addSlashPoint(p.x, p.y); }, { passive:false });
-    window.addEventListener('touchmove', e => { e.preventDefault(); const p = getCanvasPos(e.touches[0].clientX, e.touches[0].clientY); addSlashPoint(p.x, p.y); }, { passive:false });
+    window.addEventListener('touchmove', e => { if (e.target && e.target.closest && e.target.closest('a, button, .arcade-nav, #modal')) return; e.preventDefault(); const p = getCanvasPos(e.touches[0].clientX, e.touches[0].clientY); addSlashPoint(p.x, p.y); }, { passive:false });
     window.addEventListener('touchend', () => { isMouseDown = false; });
 
     function checkSlice(sx, sy) {
